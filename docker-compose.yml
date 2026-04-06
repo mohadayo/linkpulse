@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  shortener:
+    build: ./services/shortener
+    ports:
+      - "8001:8001"
+    environment:
+      - SHORTENER_PORT=8001
+      - SHORTENER_HOST=0.0.0.0
+      - ANALYTICS_URL=http://analytics:8002
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      analytics:
+        condition: service_healthy
+    restart: unless-stopped
+
+  analytics:
+    build: ./services/analytics
+    ports:
+      - "8002:8002"
+    environment:
+      - ANALYTICS_PORT=8002
+      - ANALYTICS_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  gateway:
+    build: ./services/gateway
+    ports:
+      - "8003:8003"
+    environment:
+      - GATEWAY_PORT=8003
+      - SHORTENER_URL=http://shortener:8001
+      - ANALYTICS_URL=http://analytics:8002
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      shortener:
+        condition: service_healthy
+      analytics:
+        condition: service_healthy
+    restart: unless-stopped
