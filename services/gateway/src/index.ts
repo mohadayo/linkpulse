@@ -12,6 +12,10 @@ function log(message: string): void {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
+function logError(message: string): void {
+  console.error(`[${new Date().toISOString()}] ERROR: ${message}`);
+}
+
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'gateway' });
@@ -83,18 +87,18 @@ function handleUpstreamError(err: unknown, serviceName: string, res: Response): 
   if (err instanceof AxiosError) {
     if (err.response) {
       // Upstream returned an error status
-      log(`Upstream ${serviceName} returned ${err.response.status}`);
+      logError(`Upstream ${serviceName} returned ${err.response.status}`);
       res.status(err.response.status).json(err.response.data);
     } else {
       // No response — connection error
-      log(`Upstream ${serviceName} is unreachable: ${err.message}`);
+      logError(`Upstream ${serviceName} is unreachable: ${err.message}`);
       res.status(502).json({
         error: `Service '${serviceName}' is unavailable`,
         message: err.message,
       });
     }
   } else {
-    log(`Unexpected error proxying to ${serviceName}: ${err}`);
+    logError(`Unexpected error proxying to ${serviceName}: ${err}`);
     res.status(502).json({
       error: `Service '${serviceName}' is unavailable`,
       message: 'Unexpected error',

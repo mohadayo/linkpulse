@@ -5,15 +5,17 @@ import pytest_asyncio
 from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient, ASGITransport
 
-from main import app, url_store
+from main import app, url_store, url_reverse
 
 
 @pytest.fixture(autouse=True)
 def clear_store():
-    """Clear the URL store before each test."""
+    """Clear the URL store and reverse index before each test."""
     url_store.clear()
+    url_reverse.clear()
     yield
     url_store.clear()
+    url_reverse.clear()
 
 
 @pytest.fixture
@@ -99,3 +101,41 @@ async def test_multiple_urls_get_unique_codes(client: AsyncClient, mock_analytic
         assert resp.status_code == 200
         codes.add(resp.json()["short_code"])
     assert len(codes) == 10
+
+
+@pytest.mark.asyncio
+async def test_duplicate_url_returns_same_code(client: AsyncClient, mock_analytics):
+    """同一URLを2回送信した場合、同じショートコードが返されること。"""
+    target_url = "https://example.com/duplicate-test"
+
+    resp1 = await client.post("/shorten", json={"url": target_url})
+    assert resp1.status_code == 200
+    code1 = resp1.json()["short_code"]
+
+    # 2回目は同じURLを送信
+    resp2 = await client.post("/shorten", json={"url": target_url})
+    assert resp2.status_code == 200
+    code2 = resp2.json()["short_code"]
+
+    # 同じショートコードが返されること
+    assert code1 == code2
+    assert resp1.json()["short_url"] == resp2.json()["short_url"]
+
+    # analyticsへの通知は1回のみ（重複登録時は送信しない）
+    assert mock_analytics.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_duplicate_url_does_not_add_extra_entries(client: AsyncClient, mock_analytics):
+    """同一URLを複数回送信しても、ストアのエントリが増えないこと。"""
+    from main import url_store as store
+
+    target_url = "https://example.com/dedup-store-test"
+
+    await client.post("/shorten", json={"url": target_url})
+    count_after_first = len(store)
+
+    await client.post("/shorten", json={"url": target_url})
+    count_after_second = len(store)
+
+    assert count_after_first == count_after_second

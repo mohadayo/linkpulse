@@ -26,6 +26,9 @@ CODE_CHARS = string.ascii_letters + string.digits
 # In-memory URL store: short_code -> original URL
 url_store: dict[str, str] = {}
 
+# Reverse index: original URL -> short_code (重複登録防止用)
+url_reverse: dict[str, str] = {}
+
 app = FastAPI(title="LinkPulse Shortener", version="1.0.0")
 
 
@@ -46,6 +49,23 @@ def generate_short_code() -> str:
             return code
 
 
+def get_or_create_short_code(original_url: str) -> tuple[str, bool]:
+    """既存のショートコードを返す、なければ新規生成する。
+
+    Returns:
+        (short_code, is_new): is_new=True のとき新規生成、False のとき既存コードを返した
+    """
+    if original_url in url_reverse:
+        existing_code = url_reverse[original_url]
+        logger.info("URL already shortened: %s -> %s", original_url, existing_code)
+        return existing_code, False
+
+    code = generate_short_code()
+    url_store[code] = original_url
+    url_reverse[original_url] = code
+    return code, True
+
+
 async def notify_analytics(payload: dict) -> None:
     """Fire-and-forget POST to the analytics service."""
     try:
@@ -64,17 +84,18 @@ async def health():
 @app.post("/shorten", response_model=ShortenResponse)
 async def shorten_url(body: ShortenRequest, request: Request):
     original_url = str(body.url)
-    short_code = generate_short_code()
-    url_store[short_code] = original_url
+    short_code, is_new = get_or_create_short_code(original_url)
 
     base_url = str(request.base_url).rstrip("/")
     short_url = f"{base_url}/{short_code}"
 
-    logger.info("Shortened %s -> %s", original_url, short_code)
-
-    await notify_analytics(
-        {"event": "url_created", "short_code": short_code, "original_url": original_url}
-    )
+    if is_new:
+        logger.info("Shortened %s -> %s", original_url, short_code)
+        await notify_analytics(
+            {"event": "url_created", "short_code": short_code, "original_url": original_url}
+        )
+    else:
+        logger.info("Returning existing short code for %s -> %s", original_url, short_code)
 
     return ShortenResponse(short_code=short_code, short_url=short_url)
 
