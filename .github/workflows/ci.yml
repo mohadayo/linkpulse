@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-shortener:
+    name: Test Shortener (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/shortener
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run tests
+        run: pytest test_main.py -v
+
+  test-analytics:
+    name: Test Analytics (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/analytics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test -v -race ./...
+      - name: Vet
+        run: go vet ./...
+
+  test-gateway:
+    name: Test Gateway (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: services/gateway/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
