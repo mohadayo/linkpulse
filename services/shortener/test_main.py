@@ -139,3 +139,35 @@ async def test_duplicate_url_does_not_add_extra_entries(client: AsyncClient, moc
     count_after_second = len(store)
 
     assert count_after_first == count_after_second
+
+
+@pytest.mark.asyncio
+async def test_shorten_url_at_max_length(client: AsyncClient, mock_analytics):
+    """最大長ちょうどのURLは正常に短縮されること。"""
+    from main import MAX_URL_LENGTH
+
+    # https://example.com/ は21文字。残りをパスで埋める
+    base = "https://example.com/"
+    padding = "a" * (MAX_URL_LENGTH - len(base))
+    long_url = base + padding
+    assert len(long_url) == MAX_URL_LENGTH
+
+    resp = await client.post("/shorten", json={"url": long_url})
+    assert resp.status_code == 200
+    assert "short_code" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_shorten_url_exceeds_max_length(client: AsyncClient, mock_analytics):
+    """最大長を超えるURLは422エラーが返されること。"""
+    from main import MAX_URL_LENGTH
+
+    base = "https://example.com/"
+    padding = "a" * (MAX_URL_LENGTH - len(base) + 1)
+    too_long_url = base + padding
+    assert len(too_long_url) == MAX_URL_LENGTH + 1
+
+    resp = await client.post("/shorten", json={"url": too_long_url})
+    assert resp.status_code == 422
+    # analyticsへの通知は行われないこと
+    mock_analytics.assert_not_awaited()
