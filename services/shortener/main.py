@@ -8,7 +8,7 @@ import random
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +22,7 @@ ANALYTICS_URL = os.getenv("ANALYTICS_URL", "http://analytics:8002")
 
 CODE_LENGTH = 6
 CODE_CHARS = string.ascii_letters + string.digits
+MAX_URL_LENGTH = 2048
 
 # In-memory URL store: short_code -> original URL
 url_store: dict[str, str] = {}
@@ -34,6 +35,15 @@ app = FastAPI(title="LinkPulse Shortener", version="1.0.0")
 
 class ShortenRequest(BaseModel):
     url: HttpUrl
+
+    @field_validator("url")
+    @classmethod
+    def url_must_not_exceed_max_length(cls, v: HttpUrl) -> HttpUrl:
+        if len(str(v)) > MAX_URL_LENGTH:
+            raise ValueError(
+                f"URL length exceeds maximum allowed length of {MAX_URL_LENGTH} characters"
+            )
+        return v
 
 
 class ShortenResponse(BaseModel):

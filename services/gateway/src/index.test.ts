@@ -200,4 +200,22 @@ describe('Gateway API', () => {
       expect(res.body.services[1].status).toBe('unreachable');
     });
   });
+
+  // --- Security headers (helmet) ---
+  describe('Security headers', () => {
+    it('sets X-Content-Type-Options header', async () => {
+      const res = await request(app).get('/health');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    });
+
+    it('sets X-Frame-Options header', async () => {
+      const res = await request(app).get('/health');
+      expect(res.headers['x-frame-options']).toBeDefined();
+    });
+
+    it('sets X-DNS-Prefetch-Control header', async () => {
+      const res = await request(app).get('/health');
+      expect(res.headers['x-dns-prefetch-control']).toBeDefined();
+    });
+  });
 });

@@ -1,11 +1,26 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import axios, { AxiosError } from 'axios';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 const GATEWAY_PORT = parseInt(process.env.GATEWAY_PORT || '8003', 10);
 const SHORTENER_URL = process.env.SHORTENER_URL || 'http://shortener:8001';
 const ANALYTICS_URL = process.env.ANALYTICS_URL || 'http://analytics:8002';
 
+// Rate limit: /api/shorten を1分あたり最大20リクエストに制限する
+export const shortenLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1分
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
 const app = express();
+
+// セキュリティヘッダーを追加する（helmet）
+app.use(helmet());
 app.use(express.json());
 
 function log(message: string): void {
@@ -21,8 +36,8 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'gateway' });
 });
 
-// Proxy: POST /api/shorten -> shortener service
-app.post('/api/shorten', async (req: Request, res: Response) => {
+// Proxy: POST /api/shorten -> shortener service (rate limited)
+app.post('/api/shorten', shortenLimiter, async (req: Request, res: Response) => {
   try {
     log(`Proxying POST /api/shorten to ${SHORTENER_URL}/shorten`);
     const response = await axios.post(`${SHORTENER_URL}/shorten`, req.body, {
