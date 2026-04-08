@@ -20,6 +20,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Lint with flake8
+        run: flake8 main.py test_main.py --max-line-length=120
       - name: Run tests
         run: pytest test_main.py -v
 
@@ -56,5 +58,7 @@ jobs:
           cache-dependency-path: services/gateway/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Lint
+        run: npm run lint
       - name: Run tests
         run: npm test

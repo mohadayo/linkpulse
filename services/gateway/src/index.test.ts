@@ -5,19 +5,6 @@ import app from './index';
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-// Helper to create an AxiosError-like object with no response (connection refused)
-function makeConnectionError(message: string): any {
-  const err: any = new Error(message);
-  err.isAxiosError = true;
-  err.response = undefined;
-  err.message = message;
-  // Make it pass instanceof AxiosError check — we need the constructor name
-  Object.defineProperty(err, 'constructor', { value: { name: 'AxiosError' } });
-  return err;
-}
-
-// Since we use `instanceof AxiosError`, we need to ensure our mocked errors
-// are actual AxiosError instances. Import AxiosError for that.
 import { AxiosError } from 'axios';
 
 function createAxiosConnectionError(message: string): AxiosError {
